@@ -69,13 +69,15 @@ server.registerTool(
   "speak",
   {
     description:
-      "Read text aloud using the local Kokoros TTS service. Strips markdown before synthesis.",
+      "Read text aloud using the local Kokoros TTS service. Strips markdown before synthesis. Omit `voice` unless the user explicitly requests a specific voice — the server has a configured default.",
     inputSchema: {
       text: z.string().describe("The text to read aloud."),
       voice: z
         .string()
         .optional()
-        .describe("Kokoro voicepack ID (e.g. af_heart, am_adam)."),
+        .describe(
+          "Optional Kokoro voicepack ID. Leave unset to use the configured default. Only set when the user explicitly asks for a specific voice (e.g. 'use bf_emma').",
+        ),
     },
   },
   async (args) => {
