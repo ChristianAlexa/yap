@@ -1,25 +1,45 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { stripMarkdown } from "./strip.js";
 
-// Phase 1 stub. Phase 3 will:
-//   - strip markdown from text
-//   - POST to Kokoros, play via afplay
-//   - replace char_count with stripped.length
-//   - replace stripped_text with the actual stripped output
-//   - measure duration_ms from afplay spawn -> exit
-// The stub: true / note fields exist so Claude (the model) stops narrating
-// "read aloud" over a handler that hasn't synthesized anything. Phase 3
-// deletes these two fields when real audio ships.
 export async function speak({ text, voice }) {
   const chosenVoice = voice ?? process.env.KOKORO_DEFAULT_VOICE ?? "af_heart";
+  const kokoroUrl = process.env.KOKORO_URL ?? "http://localhost:3000";
+  const stripped = stripMarkdown(text);
+
+  const response = await fetch(`${kokoroUrl}/v1/audio/speech`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ model: "tts-1", voice: chosenVoice, input: stripped }),
+  });
+
+  const tempPath = `/tmp/yap_${Date.now()}.wav`;
+  await fs.promises.writeFile(tempPath, Buffer.from(await response.arrayBuffer()));
+
+  let duration_ms = 0;
+  try {
+    // Clock starts at spawn so duration_ms is playback only — not synth + playback.
+    const start = Date.now();
+    const child = spawn("afplay", [tempPath], { stdio: "ignore" });
+    await new Promise((resolve, reject) => {
+      child.on("exit", (code) =>
+        code === 0 ? resolve() : reject(new Error(`afplay exited ${code}`)),
+      );
+      child.on("error", reject);
+    });
+    duration_ms = Date.now() - start;
+  } finally {
+    await fs.promises.unlink(tempPath).catch(() => {});
+  }
+
   return {
     voice: chosenVoice,
-    duration_ms: 0,
-    char_count: text.length,
-    stripped_text: text,
-    stub: true,
-    note: "Phase 1 placeholder — no synthesis or playback yet. Do not claim audio was played.",
+    duration_ms,
+    char_count: stripped.length,
+    stripped_text: stripped,
   };
 }
 
