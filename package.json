@@ -1,0 +1,18 @@
+{
+  "name": "yap",
+  "version": "0.1.0",
+  "description": "Thin MCP wrapper so Claude Desktop can call local Kokoros TTS.",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "test": "node --test strip.test.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.23.8"
+  }
+}
