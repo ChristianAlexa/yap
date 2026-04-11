@@ -5,42 +5,59 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { stripMarkdown } from "./strip.js";
 
+// Coarse single-flight lock: covers synthesis + playback together. Risk #5.
+let playing = false;
+
 export async function speak({ text, voice }) {
-  const chosenVoice = voice ?? process.env.KOKORO_DEFAULT_VOICE ?? "af_heart";
-  const kokoroUrl = process.env.KOKORO_URL ?? "http://localhost:3000";
-  const stripped = stripMarkdown(text);
-
-  const response = await fetch(`${kokoroUrl}/v1/audio/speech`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model: "tts-1", voice: chosenVoice, input: stripped }),
-  });
-
-  const tempPath = `/tmp/yap_${Date.now()}.wav`;
-  await fs.promises.writeFile(tempPath, Buffer.from(await response.arrayBuffer()));
-
-  let duration_ms = 0;
+  if (playing) return { error: "busy", detail: "playback in progress" };
+  playing = true;
   try {
-    // Clock starts at spawn so duration_ms is playback only — not synth + playback.
-    const start = Date.now();
-    const child = spawn("afplay", [tempPath], { stdio: "ignore" });
-    await new Promise((resolve, reject) => {
-      child.on("exit", (code) =>
-        code === 0 ? resolve() : reject(new Error(`afplay exited ${code}`)),
-      );
-      child.on("error", reject);
-    });
-    duration_ms = Date.now() - start;
-  } finally {
-    await fs.promises.unlink(tempPath).catch(() => {});
-  }
+    const chosenVoice = voice ?? process.env.KOKORO_DEFAULT_VOICE ?? "af_heart";
+    const kokoroUrl = process.env.KOKORO_URL ?? "http://localhost:3000";
+    const stripped = stripMarkdown(text);
 
-  return {
-    voice: chosenVoice,
-    duration_ms,
-    char_count: stripped.length,
-    stripped_text: stripped,
-  };
+    let response;
+    try {
+      response = await fetch(`${kokoroUrl}/v1/audio/speech`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model: "tts-1", voice: chosenVoice, input: stripped }),
+      });
+    } catch (err) {
+      return { error: "tts_unavailable", detail: err.message };
+    }
+    if (!response.ok) {
+      return { error: "tts_unavailable", detail: `HTTP ${response.status}` };
+    }
+
+    const tempPath = `/tmp/yap_${Date.now()}.wav`;
+    await fs.promises.writeFile(tempPath, Buffer.from(await response.arrayBuffer()));
+
+    let duration_ms = 0;
+    try {
+      // Clock starts at spawn so duration_ms is playback only — not synth + playback.
+      const start = Date.now();
+      const child = spawn("afplay", [tempPath], { stdio: "ignore" });
+      await new Promise((resolve, reject) => {
+        child.on("exit", (code) =>
+          code === 0 ? resolve() : reject(new Error(`afplay exited ${code}`)),
+        );
+        child.on("error", reject);
+      });
+      duration_ms = Date.now() - start;
+    } finally {
+      await fs.promises.unlink(tempPath).catch(() => {});
+    }
+
+    return {
+      voice: chosenVoice,
+      duration_ms,
+      char_count: stripped.length,
+      stripped_text: stripped,
+    };
+  } finally {
+    playing = false;
+  }
 }
 
 const server = new McpServer({
