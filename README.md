@@ -1,12 +1,8 @@
 # yap
 
-Thin MCP wrapper so Claude Desktop can call a local [Kokoros](https://github.com/lucasjinreal/Kokoros) TTS engine as a `speak` tool.
+Thin MCP wrapper so Claude Desktop can call a local [Kokoros](https://github.com/lucasjinreal/Kokoros) TTS engine as a `speak` tool. One file, stdio transport, macOS-only playback via `afplay`.
 
-For the full architecture and tool contract, see [`docs/yap-spec.md`](docs/yap-spec.md). For the phased implementation plan, see [`docs/yap-plan.md`](docs/yap-plan.md).
-
-## Status
-
-**Phase 1 — stub only.** `speak` is registered and wired into Claude Desktop, but returns a placeholder result — no markdown stripping, no synthesis, no audio playback yet. Later phases add each of these.
+The `speak` tool strips markdown, POSTs to Kokoros's OpenAI-compatible `/v1/audio/speech` endpoint, plays the returned WAV, and returns `{ voice, duration_ms, char_count, stripped_text }`. On failure it returns `{ error: "tts_unavailable" | "busy", detail }`.
 
 ## Prerequisites
 
@@ -44,18 +40,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Fully quit and relaunch Claude Desktop (⌘Q — not just closing the window). The `speak` tool will appear in the tool panel.
 
-## Running directly (without Claude Desktop)
+## Verify it works
+
+With Kokoros running on port 3000:
 
 ```bash
-node index.js   # runs the MCP server on stdio; hangs waiting for JSON-RPC input
-```
-
-Smoke-test the stdio handshake:
-
-```bash
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0.0.0"}}}' \
-  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-  | node index.js
+npm test                    # strip.js unit tests (11 cases)
+node smoke.js               # happy path: plays audio, asserts shape
+node smoke.js --dead-port   # asserts tts_unavailable when Kokoros is down
+node smoke.js --double-call # asserts the single-flight busy lock
 ```
