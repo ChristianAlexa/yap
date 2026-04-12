@@ -112,3 +112,9 @@ Anything other than `200` means Kokoros isn't serving — fix that before lookin
 
 **Claude keeps passing a `voice` you didn't ask for.**
 The tool description in `index.js` tells Claude to omit `voice` unless the user explicitly asks. If you've edited the description, make sure that instruction survived — without it, Claude tends to pick a voice on its own and override `KOKORO_DEFAULT_VOICE`.
+
+## Licenses
+
+- **yap** — MIT (see [LICENSE](LICENSE))
+- **Kokoros** — separately installed, see its [repo](https://github.com/lucasjinreal/Kokoros) for terms
+- **Kokoro-82M model** — Apache 2.0, distributed with Kokoros ([model card](https://huggingface.co/hexgrad/Kokoro-82M))
