@@ -50,6 +50,43 @@ The tool description tells Claude to omit `voice` unless the user explicitly ask
 - Concurrent: `{ error: "busy", detail }`
 - Playback failure: `{ error: "playback_failed", detail }`
 
+## Happy Path (visual)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant STT as STT (optional)
+    participant CD as Claude Desktop
+    participant LLM as Claude LLM
+    participant Yap as yap
+    participant Kokoro as Kokoros<br/>(port 3000)
+    participant Speaker as macOS Speakers
+
+    alt Typed input
+        User->>CD: Types message
+    else Voice input
+        User->>STT: Speaks message
+        STT->>CD: Transcribed text inserted
+    end
+
+    CD->>LLM: Send message + tool definitions
+    LLM->>LLM: Generate text response
+    LLM->>CD: Response with speak() tool call
+    Note over LLM: Claude decides to call speak<br/>e.g. user said "read that back"<br/>or prompt instructs auto-speak
+
+    CD->>Yap: MCP tool call: speak(text, voice?)
+    Yap->>Yap: Strip markdown formatting
+    Yap->>Kokoro: POST /v1/audio/speech<br/>{model, voice, input}
+    Kokoro->>Kokoro: Synthesize audio (Kokoro-82M ONNX)
+    Kokoro-->>Yap: Audio blob (WAV)
+    Yap->>Yap: Write to /tmp/yap_<ts>.wav
+    Yap->>Speaker: afplay /tmp/yap_<ts>.wav
+    Speaker-->>User: Hears Claude's response
+    Yap->>Yap: Clean up temp file
+    Yap-->>CD: { voice, duration_ms, char_count, stripped_text }
+    CD-->>User: Shows text response + "Read aloud"
+```
+
 ## Running Kokoros (dependency, not part of this repo)
 
 Kokoros lives in a separate repo (`github.com/lucasjinreal/Kokoros`). For yap to work, Kokoros must be running:
@@ -59,6 +96,36 @@ koko openai    # binds 0.0.0.0:3000, two instances by default
 ```
 
 Note: older Kokoros docs mention a `--instances 1` flag for lowest latency. The currently shipped binary does not accept it — default `koko openai` is what works.
+
+### Optional: launchd service (always-on)
+
+Create `~/Library/LaunchAgents/com.yap.kokoros.plist` to start Kokoros on login:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yap.kokoros</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/koko</string>
+        <string>openai</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/kokoros.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/kokoros.err</string>
+</dict>
+</plist>
+```
+
+Then: `launchctl load ~/Library/LaunchAgents/com.yap.kokoros.plist`
 
 ## Commands
 
@@ -80,3 +147,31 @@ Requires Node 20.11+ (for stable `node:test` + global `fetch`). ESM throughout (
 - New capability that any agent could use → add to Kokoros or a shared script, and let yap call it like everyone else.
 - If a new return shape is added to `speak`, update the three-shape list above and add an assertion mode to `smoke.js`.
 - Stay tiny. No new deps without a concrete reason.
+
+## Direct Kokoros Usage (non-MCP)
+
+Other agents and scripts talk to Kokoros directly — yap is just the MCP bridge for Claude Desktop. These examples are useful context for understanding the boundary.
+
+### Via HTTP (server mode)
+
+```bash
+curl -X POST http://localhost:3000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","voice":"af_heart","input":"Hello from any agent"}' \
+  --output /tmp/speech.wav && afplay /tmp/speech.wav
+```
+
+### Via HTTP with streaming (lower latency)
+
+```bash
+curl -s -X POST http://localhost:3000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","voice":"af_heart","input":"A longer response starts playing in 1-2 seconds...","stream":true}' \
+  | ffplay -f s16le -ar 24000 -nodisp -autoexit -loglevel quiet -
+```
+
+### Via CLI pipe (no server needed)
+
+```bash
+echo "Hello from the command line" | koko stream > /tmp/speech.wav && afplay /tmp/speech.wav
+```

@@ -1,14 +1,38 @@
 # yap
 
-Thin MCP wrapper so Claude Desktop can call a local [Kokoros](https://github.com/lucasjinreal/Kokoros) TTS engine as a `speak` tool. One file, stdio transport, macOS-only playback via `afplay`.
+Give Claude Desktop a voice. Ask it to read a response aloud and it does — using a local TTS engine, no cloud API, nothing leaves your machine.
 
-The `speak` tool strips markdown, POSTs to Kokoros's OpenAI-compatible `/v1/audio/speech` endpoint, plays the returned WAV, and returns `{ voice, duration_ms, char_count, stripped_text }`. On failure it returns `{ error: "tts_unavailable" | "busy" | "playback_failed", detail }`.
+Under the hood, yap is a tiny [MCP](https://modelcontextprotocol.io/) server that exposes a single `speak` tool. It strips markdown from the text, sends it to a local [Kokoros](https://github.com/lucasjinreal/Kokoros) TTS service, plays the audio, and returns metadata. One file, stdio transport, macOS-only.
 
 ## Prerequisites
 
-- Node ≥ 20.11
-- [Kokoros](https://github.com/lucasjinreal/Kokoros) running on `localhost:3000` (`koko openai`) — uses the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model (Apache 2.0)
-- macOS (playback uses `afplay`)
+- **macOS** (playback uses `afplay`)
+- **Node ≥ 20.11**
+- **[Kokoros](https://github.com/lucasjinreal/Kokoros)** running on `localhost:3000` — the local TTS engine that does the actual speech synthesis, using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model (Apache 2.0)
+
+<details>
+<summary>Installing Kokoros (if you haven't already)</summary>
+
+Kokoros is a standalone Rust binary. The short version for macOS:
+
+```bash
+brew install pkg-config opus
+git clone https://github.com/lucasjinreal/Kokoros.git
+cd Kokoros
+bash download_all.sh        # downloads the ONNX model + voice data
+cargo build --release
+sudo bash install.sh        # copies koko to /usr/local/bin
+```
+
+Then start the TTS server:
+
+```bash
+koko openai                 # binds 0.0.0.0:3000
+```
+
+See the [Kokoros README](https://github.com/lucasjinreal/Kokoros) for full details, Linux instructions, and troubleshooting.
+
+</details>
 
 ## Setup
 
@@ -18,17 +42,14 @@ cd yap
 npm install
 ```
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` — **replace `/absolute/path/to/yap` with the actual path** where you cloned the repo:
 
 ```json
 {
   "mcpServers": {
     "yap": {
-      "command": "bash",
-      "args": [
-        "-c",
-        "source ~/.nvm/nvm.sh && nvm use 20 > /dev/null && node /absolute/path/to/yap/index.js"
-      ],
+      "command": "node",
+      "args": ["/absolute/path/to/yap/index.js"],
       "env": {
         "KOKORO_URL": "http://localhost:3000",
         "KOKORO_DEFAULT_VOICE": "af_heart"
@@ -37,6 +58,12 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   }
 }
 ```
+
+> **Using nvm?** Node installed via nvm isn't visible to Claude Desktop's spawned process. Replace the config above with:
+> ```json
+> "command": "bash",
+> "args": ["-c", "source ~/.nvm/nvm.sh && nvm use 20 > /dev/null && node /absolute/path/to/yap/index.js"]
+> ```
 
 Fully quit and relaunch Claude Desktop (⌘Q — not just closing the window). The `speak` tool will appear in the tool panel.
 
