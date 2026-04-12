@@ -2,6 +2,7 @@
   "name": "yap",
   "version": "0.1.0",
   "description": "Thin MCP wrapper so Claude Desktop can call local Kokoros TTS.",
+  "license": "MIT",
   "type": "module",
   "main": "index.js",
   "engines": {

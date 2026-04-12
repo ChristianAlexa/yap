@@ -45,6 +45,8 @@ export async function speak({ text, voice }) {
         child.on("error", reject);
       });
       duration_ms = Date.now() - start;
+    } catch (err) {
+      return { error: "playback_failed", detail: err.message };
     } finally {
       await fs.promises.unlink(tempPath).catch(() => {});
     }

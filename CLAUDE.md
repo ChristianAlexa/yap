@@ -44,10 +44,11 @@ The tool description tells Claude to omit `voice` unless the user explicitly ask
 
 **Env vars:** `KOKORO_URL` (default `http://localhost:3000`), `KOKORO_DEFAULT_VOICE` (default `af_heart`). Both read inside the handler per-call — not captured at import time. Verified by `smoke.js --dead-port` and by `KOKORO_DEFAULT_VOICE=<id> node smoke.js`.
 
-**Return shapes (three):**
+**Return shapes (four):**
 - Happy: `{ voice, duration_ms, char_count, stripped_text }`
 - Unreachable: `{ error: "tts_unavailable", detail }`
 - Concurrent: `{ error: "busy", detail }`
+- Playback failure: `{ error: "playback_failed", detail }`
 
 ## Running Kokoros (dependency, not part of this repo)
 
