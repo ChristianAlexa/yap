@@ -1,9 +1,10 @@
 // End-to-end smoke test. Requires Kokoros running on KOKORO_URL
-// (default http://localhost:3000) except in --dead-port mode.
+// (default http://localhost:3000) except in --dead-port and --empty-input modes.
 // Modes:
 //   (default)      Phase 3 happy-path assertions + /tmp leak check.
 //   --dead-port    Points at a closed port, asserts tts_unavailable shape.
 //   --double-call  Fires two overlapping calls, asserts one busy + one success.
+//   --empty-input  Sends a fenced-only input, asserts empty_input shape (no Kokoros call).
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -26,6 +27,18 @@ if (mode === "--dead-port") {
     console.log("smoke --dead-port ok:", JSON.stringify(result));
   } catch (err) {
     console.error("smoke --dead-port FAILED:", err.message ?? err);
+    process.exit(1);
+  }
+} else if (mode === "--empty-input") {
+  try {
+    // Input that is entirely a fenced code block — strips to "".
+    const input = ["```python", 'print("x")', "```"].join("\n");
+    const result = await speak({ text: input });
+    assert.equal(result.error, "empty_input", `expected empty_input, got ${JSON.stringify(result)}`);
+    assert.equal(typeof result.detail, "string", "detail should be a string");
+    console.log("smoke --empty-input ok:", JSON.stringify(result));
+  } catch (err) {
+    console.error("smoke --empty-input FAILED:", err.message ?? err);
     process.exit(1);
   }
 } else if (mode === "--double-call") {

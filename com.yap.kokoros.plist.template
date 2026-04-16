@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yap.kokoros</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>@@KOKOROS_DIR@@/target/release/koko</string>
+        <string>openai</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>@@KOKOROS_DIR@@</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/kokoros.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/kokoros.err</string>
+</dict>
+</plist>

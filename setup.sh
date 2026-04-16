@@ -134,6 +134,61 @@ fi
 echo
 echo "Then fully quit Claude Desktop with ${BOLD}⌘Q${RESET} and relaunch. The ${BOLD}speak${RESET} tool will appear automatically."
 
+# --- 6. Claude Code registration (optional) --------------------------------
+# Separate from Claude Desktop: different product, different config store.
+# Claude Code ships a CLI (`claude mcp add`) that edits its own config safely,
+# so we can offer a one-command registration instead of a JSON-merge dance.
+if command -v claude >/dev/null 2>&1; then
+  echo
+  echo "${BOLD}Claude Code detected${RESET} — optional second install target."
+  echo
+  echo "Claude Code is a separate product from Claude Desktop with its own MCP"
+  echo "config. Registering here makes the ${BOLD}speak${RESET} tool callable from any"
+  echo "Claude Code session (terminal, IDE extension), not just Claude Desktop."
+
+  if (( HAS_NVM == 1 )); then
+    CC_COMMAND="bash"
+    CC_INNER="source ~/.nvm/nvm.sh && nvm use 20 > /dev/null && node $YAP_DIR/index.js"
+    CC_ARGS=(-c "$CC_INNER")
+    CC_DISPLAY="bash -c '$CC_INNER'"
+  else
+    CC_COMMAND="${NODE_BIN:-$(command -v node)}"
+    CC_ARGS=("$YAP_DIR/index.js")
+    CC_DISPLAY="$CC_COMMAND $YAP_DIR/index.js"
+  fi
+
+  if claude mcp list 2>/dev/null | grep -q "^yap:"; then
+    echo
+    ok "yap is already registered with Claude Code — nothing to do."
+  else
+    echo
+    echo "This will run (user scope, so it works in every Claude Code session):"
+    echo "  ${DIM}claude mcp add yap -s user \\${RESET}"
+    echo "  ${DIM}  -e KOKORO_URL=http://localhost:3000 \\${RESET}"
+    echo "  ${DIM}  -e KOKORO_DEFAULT_VOICE=af_heart \\${RESET}"
+    echo "  ${DIM}  -- $CC_DISPLAY${RESET}"
+    echo
+    if [[ -t 0 ]]; then
+      read -r -p "Register yap with Claude Code? [y/N] " REPLY
+      if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+        # Name before -e so commander's variadic -e doesn't swallow it.
+        if claude mcp add yap -s user \
+             -e KOKORO_URL=http://localhost:3000 \
+             -e KOKORO_DEFAULT_VOICE=af_heart \
+             -- "$CC_COMMAND" "${CC_ARGS[@]}"; then
+          ok "Registered with Claude Code. Start a new Claude Code session to pick it up."
+        else
+          fail "Claude Code registration failed — see error above."
+        fi
+      else
+        echo "Skipped. Run the command above later if you change your mind."
+      fi
+    else
+      warn "Non-interactive shell — skipping prompt. Run the command above to register."
+    fi
+  fi
+fi
+
 if (( KOKORO_OK == 0 )); then
   echo
   echo "${YELLOW}Reminder:${RESET} yap needs Kokoros running to actually synthesize audio."

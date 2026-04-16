@@ -1,48 +1,36 @@
 # yap
 
-Give Claude Desktop a voice. Ask it to read a response aloud and it does — using a local TTS engine, no cloud API, nothing leaves your machine.
+Give Claude Desktop or Claude Code a voice. Ask it to read a response aloud and it does — using a local TTS engine.
 
-Under the hood, yap is a tiny [MCP](https://modelcontextprotocol.io/) server that exposes a single `speak` tool. It strips markdown from the text, sends it to a local [Kokoros](https://github.com/lucasjinreal/Kokoros) TTS service, plays the audio, and returns metadata. One file, stdio transport, macOS-only.
+Under the hood, yap is a tiny [MCP](https://modelcontextprotocol.io/) server that exposes a single `speak` tool. It strips markdown from the text, sends it to local [Kokoros](https://github.com/lucasjinreal/Kokoros), plays audio, and returns metadata. macOS-only.
 
 ## Prerequisites
 
 - **macOS** (playback uses `afplay`)
 - **Node ≥ 20.11**
-- **[Kokoros](https://github.com/lucasjinreal/Kokoros)** running on `localhost:3000` — the local TTS engine that does the actual speech synthesis, using the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model (Apache 2.0)
+- **[Kokoros](https://github.com/lucasjinreal/Kokoros)** reachable at `http://localhost:3000`
 
-<details>
-<summary>Installing Kokoros (if you haven't already)</summary>
-
-Kokoros is a standalone Rust binary. The short version for macOS:
+Install Kokoros from its repo, then run:
 
 ```bash
-brew install pkg-config opus
-git clone https://github.com/lucasjinreal/Kokoros.git
-cd Kokoros
-bash download_all.sh        # downloads the ONNX model + voice data
-cargo build --release
-sudo bash install.sh        # copies koko to /usr/local/bin
+koko openai
 ```
 
-Then start the TTS server:
-
-```bash
-koko openai                 # binds 0.0.0.0:3000
-```
-
-See the [Kokoros README](https://github.com/lucasjinreal/Kokoros) for full details, Linux instructions, and troubleshooting.
-
-</details>
-
-## Setup
+## Quick Start
 
 ```bash
 git clone https://github.com/ChristianAlexa/yap.git
 cd yap
-npm install
+bash setup.sh
 ```
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` — **replace `/absolute/path/to/yap` with the actual path** where you cloned the repo:
+`setup.sh` installs dependencies, runs tests, checks Kokoros reachability, and prints the exact Claude Desktop config snippet for your machine.
+
+> Using Claude Code? [`INSTALL.md`](./INSTALL.md) is an agent playbook that walks you through the same setup interactively — `claude "follow INSTALL.md to install yap"`.
+
+Add that `yap` entry to `~/Library/Application Support/Claude/claude_desktop_config.json`.
+
+If you prefer manual setup, use:
 
 ```json
 {
@@ -59,13 +47,39 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` — **r
 }
 ```
 
-> **Using nvm?** Node installed via nvm isn't visible to Claude Desktop's spawned process. Replace the config above with:
+> **Using nvm?** Node installed via nvm isn't visible to Claude Desktop's spawned process. Use:
 > ```json
 > "command": "bash",
 > "args": ["-c", "source ~/.nvm/nvm.sh && nvm use 20 > /dev/null && node /absolute/path/to/yap/index.js"]
 > ```
 
 Fully quit and relaunch Claude Desktop (⌘Q — not just closing the window). The `speak` tool will appear in the tool panel.
+
+### Claude Code (optional)
+
+Claude Code uses a separate MCP config from Claude Desktop. To register `yap` for all Claude Code sessions, run:
+
+```bash
+claude mcp add yap -s user \
+  -e KOKORO_URL=http://localhost:3000 \
+  -e KOKORO_DEFAULT_VOICE=af_heart \
+  -- node /absolute/path/to/yap/index.js
+```
+
+If your Node install is managed by nvm, use this command form instead:
+
+```bash
+claude mcp add yap -s user \
+  -e KOKORO_URL=http://localhost:3000 \
+  -e KOKORO_DEFAULT_VOICE=af_heart \
+  -- bash -c 'source ~/.nvm/nvm.sh && nvm use 20 > /dev/null && node /absolute/path/to/yap/index.js'
+```
+
+Verify registration with:
+
+```bash
+claude mcp list
+```
 
 ## Using it
 
@@ -79,13 +93,12 @@ Kokoros ships 54 voices; see the [Kokoros repo](https://github.com/lucasjinreal/
 
 ## Verify it works
 
-With Kokoros running on port 3000:
-
 ```bash
-npm test                    # strip.js unit tests (11 cases)
-node smoke.js               # happy path: plays audio, asserts shape
-node smoke.js --dead-port   # asserts tts_unavailable when Kokoros is down
-node smoke.js --double-call # asserts the single-flight busy lock
+npm test                    # strip.js unit tests (11 cases) — no Kokoros needed
+node smoke.js               # happy path: plays audio (requires Kokoros running)
+node smoke.js --dead-port   # asserts tts_unavailable (deliberately points at a closed port)
+node smoke.js --empty-input # asserts empty_input when the text strips to "" (no Kokoros call)
+node smoke.js --double-call # asserts the single-flight busy lock (requires Kokoros)
 ```
 
 ## Troubleshooting
@@ -107,8 +120,14 @@ Anything other than `200` means Kokoros isn't serving — fix that before lookin
 **A call returns `{ error: "busy" }`.**
 `yap` holds a single-flight lock across synthesis *and* playback, so only one `speak` call runs at a time. Wait for the current one to finish. This is intentional — overlapping calls are an edge case that doesn't happen in normal use.
 
+**A call returns `{ error: "empty_input" }`.**
+The text was empty after markdown stripping — usually because the input was entirely a fenced code block. Send some prose alongside it.
+
+**A call returns `{ error: "write_failed" }`.**
+yap couldn't write the temp WAV file to `/tmp`. Check disk space and `/tmp` permissions. The `detail` field has the specific OS error.
+
 **A call returns `{ error: "playback_failed" }`.**
-`afplay` exited with a non-zero code. This can happen if the WAV file is corrupt, `/tmp` is not writable, or `afplay` is missing (unlikely on stock macOS). Check the `detail` field for the specific error.
+`afplay` exited with a non-zero code. This can happen if the WAV file is corrupt or `afplay` is missing (unlikely on stock macOS). Check the `detail` field for the specific error.
 
 **Claude keeps passing a `voice` you didn't ask for.**
 The tool description in `index.js` tells Claude to omit `voice` unless the user explicitly asks. If you've edited the description, make sure that instruction survived — without it, Claude tends to pick a voice on its own and override `KOKORO_DEFAULT_VOICE`.

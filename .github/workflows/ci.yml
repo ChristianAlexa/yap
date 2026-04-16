@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['20.11', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # These two smoke modes don't need Kokoros, so they run in CI:
+      #   --dead-port  asserts the tts_unavailable shape (closed port)
+      #   --empty-input asserts the empty_input shape (strips to "")
+      - run: node smoke.js --dead-port
+      - run: node smoke.js --empty-input

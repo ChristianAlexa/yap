@@ -34,20 +34,23 @@ The tool description tells Claude to omit `voice` unless the user explicitly ask
 **Behavior, in order:**
 1. Acquire the single-flight lock. If already held, return `{ error: "busy", detail }` immediately.
 2. Strip markdown from `text` via `stripMarkdown` — headings, bold, backticks, bullets, code fences, links. Kokoro reads literal characters, so unstripped markdown sounds terrible.
-3. POST to `${KOKORO_URL}/v1/audio/speech` with `{ model: "tts-1", voice, input }`.
-4. If the POST rejects (ECONNREFUSED etc.) or returns non-2xx: return `{ error: "tts_unavailable", detail }`. Do not throw.
-5. Write the audio body to `/tmp/yap_<timestamp>.wav`.
-6. Spawn `afplay` on the temp file, measure wall-clock duration from spawn to exit (playback only, not synth+playback).
-7. Unlink the temp file in a `finally`.
-8. Release the lock in the outer `finally`.
-9. Return `{ voice, duration_ms, char_count, stripped_text }`.
+3. If the stripped text is empty (e.g. input was only a fenced code block), return `{ error: "empty_input", detail }` without calling Kokoros.
+4. POST to `${KOKORO_URL}/v1/audio/speech` with `{ model: "tts-1", voice, input }`.
+5. If the POST rejects (ECONNREFUSED etc.) or returns non-2xx: return `{ error: "tts_unavailable", detail }`. Do not throw.
+6. Write the audio body to `/tmp/yap_<timestamp>.wav`. If the write fails, return `{ error: "write_failed", detail }`.
+7. Spawn `afplay` on the temp file, measure wall-clock duration from spawn to exit (playback only, not synth+playback).
+8. Unlink the temp file in a `finally`.
+9. Release the lock in the outer `finally`.
+10. Return `{ voice, duration_ms, char_count, stripped_text }`.
 
 **Env vars:** `KOKORO_URL` (default `http://localhost:3000`), `KOKORO_DEFAULT_VOICE` (default `af_heart`). Both read inside the handler per-call — not captured at import time. Verified by `smoke.js --dead-port` and by `KOKORO_DEFAULT_VOICE=<id> node smoke.js`.
 
-**Return shapes (four):**
+**Return shapes (six):**
 - Happy: `{ voice, duration_ms, char_count, stripped_text }`
 - Unreachable: `{ error: "tts_unavailable", detail }`
 - Concurrent: `{ error: "busy", detail }`
+- Empty after stripping: `{ error: "empty_input", detail }`
+- Temp file write failure: `{ error: "write_failed", detail }`
 - Playback failure: `{ error: "playback_failed", detail }`
 
 ## Happy Path (visual)
@@ -134,6 +137,7 @@ npm install                 # install deps (@modelcontextprotocol/sdk, zod)
 npm test                    # run strip.js unit tests (11 cases, node:test)
 node smoke.js               # happy path: plays audio, asserts return shape + temp-file cleanup
 node smoke.js --dead-port   # asserts tts_unavailable when Kokoros is down
+node smoke.js --empty-input # asserts empty_input shape (no Kokoros call needed)
 node smoke.js --double-call # asserts the single-flight busy lock
 ```
 
@@ -145,7 +149,7 @@ Requires Node 20.11+ (for stable `node:test` + global `fetch`). ESM throughout (
 
 - New capability that only Claude Desktop needs → add to yap.
 - New capability that any agent could use → add to Kokoros or a shared script, and let yap call it like everyone else.
-- If a new return shape is added to `speak`, update the three-shape list above and add an assertion mode to `smoke.js`.
+- If a new return shape is added to `speak`, update the return shapes list above and add an assertion mode to `smoke.js`.
 - Stay tiny. No new deps without a concrete reason.
 
 ## Direct Kokoros Usage (non-MCP)

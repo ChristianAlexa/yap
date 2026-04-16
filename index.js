@@ -5,7 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { stripMarkdown } from "./strip.js";
 
-// Coarse single-flight lock: covers synthesis + playback together. Risk #5.
+// Coarse single-flight lock: covers synthesis + playback together.
+// Concurrent synth with serialized playback is complexity for an edge case
+// that doesn't happen in practice.
 let playing = false;
 
 export async function speak({ text, voice }) {
@@ -15,6 +17,10 @@ export async function speak({ text, voice }) {
     const chosenVoice = voice ?? process.env.KOKORO_DEFAULT_VOICE ?? "af_heart";
     const kokoroUrl = process.env.KOKORO_URL ?? "http://localhost:3000";
     const stripped = stripMarkdown(text);
+
+    if (stripped.length === 0) {
+      return { error: "empty_input", detail: "text is empty after markdown stripping" };
+    }
 
     let response;
     try {
@@ -31,7 +37,11 @@ export async function speak({ text, voice }) {
     }
 
     const tempPath = `/tmp/yap_${Date.now()}.wav`;
-    await fs.promises.writeFile(tempPath, Buffer.from(await response.arrayBuffer()));
+    try {
+      await fs.promises.writeFile(tempPath, Buffer.from(await response.arrayBuffer()));
+    } catch (err) {
+      return { error: "write_failed", detail: err.message };
+    }
 
     let duration_ms = 0;
     try {
