@@ -53,6 +53,8 @@ The tool description tells Claude to omit `voice` unless the user explicitly ask
 - Temp file write failure: `{ error: "write_failed", detail }`
 - Playback failure: `{ error: "playback_failed", detail }`
 
+Note: `playback_failed` and `write_failed` have no automated smoke coverage — `playback_failed` would require a live `afplay` environment plus a way to force it to exit non-zero, and `write_failed` would require an unwritable `/tmp`. The gap is deliberate, not an oversight.
+
 ## Happy Path (visual)
 
 ```mermaid

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_No unreleased changes._
+
+## [0.1.1] - 2026-04-16
+
 ### Added
 - `empty_input` return shape — `speak` returns a structured error instead of sending an empty string to Kokoros when the text is empty after markdown stripping.
 - `write_failed` return shape — temp file write errors now surface as a structured error instead of an unhandled exception.
@@ -16,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.prettierrc` documenting the formatting contract.
 
 ### Fixed
-- Cleared moderate `npm audit` finding by updating transitive `hono` dependency.
+- Cleared moderate `npm audit` finding by updating transitive `hono` dependency (transitive, via `@modelcontextprotocol/sdk`).
 
 ## [0.1.0] - 2026-04-15
 

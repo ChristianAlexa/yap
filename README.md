@@ -129,6 +129,9 @@ yap couldn't write the temp WAV file to `/tmp`. Check disk space and `/tmp` perm
 **A call returns `{ error: "playback_failed" }`.**
 `afplay` exited with a non-zero code. This can happen if the WAV file is corrupt or `afplay` is missing (unlikely on stock macOS). Check the `detail` field for the specific error.
 
+**A `speak` call hangs without returning.**
+Kokoros may be deadlocked. Restart it via `make restart` or re-run `koko openai`. Mostly informational: `fetch` now times out at 30s and returns `tts_unavailable`, so the call will eventually come back on its own — but a Kokoros restart is the fix.
+
 **A call times out on very long text.**
 `speak` blocks until playback finishes, so a 30-second response is a 30-second tool call. If Claude Desktop's MCP timeout is shorter than synthesis + playback, the call is cut off before it returns. Try shorter passages, or raise the timeout in `claude_desktop_config.json`.
 

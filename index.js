@@ -28,6 +28,7 @@ export async function speak({ text, voice }) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ model: "tts-1", voice: chosenVoice, input: stripped }),
+        signal: AbortSignal.timeout(30_000),
       });
     } catch (err) {
       return { error: "tts_unavailable", detail: err.message };
