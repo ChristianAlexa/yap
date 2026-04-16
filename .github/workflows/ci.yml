@@ -7,6 +7,10 @@ on:
 
 jobs:
   test:
+    # yap is macOS-only (playback uses afplay), but CI runs on ubuntu-latest because
+    # only the headless smoke modes (--dead-port, --empty-input) run here — neither
+    # invokes afplay. Do NOT add `node smoke.js` (no flags) or `--double-call` here;
+    # both spawn afplay and will fail on Linux.
     runs-on: ubuntu-latest
     strategy:
       matrix:
