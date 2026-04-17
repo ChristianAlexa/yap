@@ -85,7 +85,8 @@ claude mcp list
 
 Once the `speak` tool is registered, prompt Claude in plain English:
 
-- **"yap that"** after a response — reads the previous reply aloud.
+- **"yap"** (or *"yap that"*) after a response — reads the previous reply aloud in full.
+- **"yap less"** (or *"yap the tldr"* / *"yap short"*) — reads a one-sentence summary of the previous reply instead of the full thing. Useful for long responses when you just want the gist.
 - **`yap: <text>`** — reads exactly what follows the colon, nothing else. Useful when you want a specific string spoken verbatim without Claude paraphrasing.
 - **"yap that with `bf_emma`"** — same as above but overrides the default voice. Omit the voice name to use `KOKORO_DEFAULT_VOICE`.
 

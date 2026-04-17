@@ -82,7 +82,7 @@ server.registerTool(
   "speak",
   {
     description:
-      "Read text aloud using the local Kokoros TTS service. Strips markdown before synthesis. Omit `voice` unless the user explicitly requests a specific voice — the server has a configured default.",
+      "Read text aloud using the local Kokoros TTS service. Strips markdown before synthesis. Omit `voice` unless the user explicitly requests a specific voice — the server has a configured default. If the user says \"yap less\" (or similar: \"yap the tldr\", \"yap short\"), pass a one-sentence summary of the prior response as `text` rather than the full reply.",
     inputSchema: {
       text: z.string().describe("The text to read aloud."),
       voice: z
